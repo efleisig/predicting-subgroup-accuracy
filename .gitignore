@@ -1,0 +1,6 @@
+*.swp
+*.lock
+*.pyc
+*.csv
+*.tsv
+secrets.py
