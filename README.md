@@ -1,4 +1,4 @@
-This repo contains code written for our COS597E final project
+This repo contains code written for our COS597E final project.
 
 # Files
 1. fetch_tweets.py contains code used to rehydrate tweet data sets that only contained tweet IDs (the original Scotland geotagged data set)
