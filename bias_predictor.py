@@ -2,8 +2,12 @@ import os
 import csv
 import re
 import collections
+import copy
+import random
 
 import numpy as np
+import matplotlib.pyplot as plt
+
 from itertools import zip_longest
 import langid
 from nltk import ngrams
@@ -19,40 +23,7 @@ from sklearn.model_selection import KFold
 from sklearn.feature_selection import RFECV, RFE
 from sklearn.metrics import mean_absolute_error
 
-""" Rough notes on the methodology
-# 1. Build a representative sampling of the data set we'll end up testing (the universe of all English tweets)
-#       -> Should this include tweets from the challenge data set? If so, how?
-#       -> I think yes... maybe representative of their proportion of the general population
-#       -> Or easier, just use samplings from http://help.sentiment140.com/for-students. Divide the
-#       -> data set up into equal sized chunks and train on the accuracy on each chunk
-#
-# 2. Convert representative samples into the same feature set as the models
-#       -> langid provides utilities to do this. It builds a final feature vector of most important
-#       -> words. 
-#       -> dl3 roughly describes what its feature space is. Mirror it to the best of our ability
-#
-# 3. Define meta-features of the representative sample and new data sets to compare against
-#    "fraction of tokens appearing in the concerned dictionary"
-#       -> For langid, I think this is the set of words selected for the feature vectors.
-#          The langid features are n-grams ranked and selected by their information gain
-#          So the metafeatures are
-#          for each sample, (# of words in the sample that are in the dictionary)/(# of words in the sample)
-#
-# 4. Learn a regression model on predictive accuracy, where each training data input is a vector of the
-#    metafeatures for each representative sample. Label with the accuracies of each representative sample
-#    (run the models to get their accuracy). Use SVMs as the model.
-#
-# 5. Predict the accuracy on new data sets by running their meta-features as inputs to the model
-#   -> Do so by drawing N equal sized samples from the new data set, and predicting accuracy on each. The overall
-#   -> predicted accuracy is reported as the average
-#   -> Use samples of size 4000, since that's what we traing the model on
-#       -> But... we only showed experts a subset, so should just use the same 15 tweets?
-#           -> I think yes, but we can also use the more general N equal sized samples approach to compare against also
-"""
-
 THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
-RAW_TRAINING_DATA_FILE = 'data/training_data.csv'
-LABELLED_TRAINING_DATA_FILE = 'data/labelled_training_data_400.csv'
 
 AAVE_DATA = 'data/twitteraae_all_aa.tsv'
 SCOTTISH_DATA = 'data/scottish_english_tweets.csv'
@@ -83,22 +54,6 @@ def label_data(data, debug=False):
         if i % 50 == 0: print('Labelled {} chunks...'.format(i))
     return data, np.array(accuracies)
 
-def read_labelled_training_data(file):
-    labels = []
-    data = []
-    with open(file, 'r', errors='ignore') as data_file:
-        reader = csv.reader(data_file)
-        for i, row in enumerate(reader):
-            if i == 0:
-                # First row are the labels
-                labels.extend([float(acc) for acc in row])
-                # Add an empty list for data entry
-                data = [[] for _ in range(len(row))]
-                continue
-            for j, tweet in enumerate(row):
-                data[j].append(tweet)
-    return np.array(data), np.array(labels)
-
 # Convert all inputs to meta-features
 # use # of times the term occurred at least once in the data set for each feature
 # and the mean number of occurrences
@@ -115,18 +70,9 @@ def convert_to_metafeatures(training_data):
     result = np.array(result)
     return result
 
-def read_labelled_metafeatures_data(metafeatures_file):
-    data = []
-    labels = []
-    with open(metafeatures_file, 'r', errors='ignore') as data_file:
-        reader = csv.reader(data_file)
-        for row in reader:
-            data.append(list(map(float, row[:-1])))
-            labels.append(float(row[-1]))
-    return np.array(data), np.array(labels)
-
 def read_global_english_data(global_english_file):
     global_english_tweets = []
+    locations = {}
     with open(global_english_file, 'r') as file:
         lineReader = csv.reader(file, delimiter='\t')
         for i, row in enumerate(lineReader):
@@ -136,34 +82,70 @@ def read_global_english_data(global_english_file):
                 if is_english == 1:
                     tweet = re.sub(r"(?:\@|\#|https?\://)\S+", "", tweet)
                     global_english_tweets.append(tweet)
-    return global_english_tweets
+                    locations[tweet] = row[1]
+    return global_english_tweets, locations
+
+def partition_by_location(tweets, locations):
+    us_tweets = []
+    other = []
+    for chunk in tweets:
+        for tweet in chunk:
+            if locations[tweet] == 'US':
+                us_tweets.append(tweet)
+            else:
+                other.append(tweet)
+    return np.array(us_tweets), np.array(other)
+
+def trim_to_short(tweets):
+    result = []
+    for chunk in tweets:
+        for tweet in chunk:
+            if len(tweet.split()) <= 5:
+                result.append(tweet)
+    return np.array(result)
+
+def plot_test_data(predicted, actual):
+    random.seed(10)
+    N = 10
+    sample_indices = random.sample(range(0, len(predicted)), N)
+    predicted_samples = [predicted[i] for i in sample_indices]
+    actual_samples = [actual[i] for i in sample_indices]
+    #data = [predicted_samples, actual_samples]
+
+    # create plot
+    fig, ax = plt.subplots()
+    index = np.arange(N)
+    bar_width = 0.25
+    opacity = 0.8
+
+    rects1 = plt.bar(index, predicted_samples, bar_width,
+        alpha=opacity, color='b', label='Predicted Accuracy')
+
+    rects2 = plt.bar(index + bar_width, actual_samples, bar_width,
+        alpha=opacity, color='g', label='Actual Accuracy')
+
+    plt.xlabel('Tweet Set (Size 25)')
+    plt.ylabel('Accuracy')
+    plt.title('Predicted Accuracy vs Actual')
+    plt.legend()
+
+    plt.tick_params(
+        axis='x',          # changes apply to the x-axis
+        which='both',      # both major and minor ticks are affected
+        bottom=False,      # ticks along the bottom edge are off
+        top=False,         # ticks along the top edge are off
+        labelbottom=False) # labels along the bottom edge are off
+
+    plt.tight_layout()
+    plt.show()
     
 if __name__ == '__main__':
-    labelled_training_data_file = os.path.join(THIS_FOLDER, LABELLED_TRAINING_DATA_FILE)
-    training_data = None
-    labels = None
-    if not os.path.exists(labelled_training_data_file):
-        print('Creating new labelled data...')
-        # Read the 1,600,000 tweets to use as training data, and split into chunks of roughly
-        # 4000 tweets each, 400 chunks
-        # NOTE: Some of the training data is incorrectly labelled as English. The incidence 
-        #       of such errors seems small, though
-        training_data = read_data(RAW_TRAINING_DATA_FILE, 5)
-        training_data = np.array_split(training_data, 400)
-
-        # Run the training data through langid to determine its accuracy on each
-        training_data, labels = label_data(training_data, debug=False)
-        with open(labelled_training_data_file, 'w') as csvfile:
-            linewriter = csv.writer(csvfile)
-            linewriter.writerow(labels)
-            output_data = zip_longest(*training_data, fillvalue = '')
-            linewriter.writerows(output_data)
-    else:
-        print('Reading labelled data from file...')
-        training_data, labels = read_labelled_training_data(labelled_training_data_file)
-
-    print('Converting inputs to metafeatures...')
-    training_data = convert_to_metafeatures(training_data)
+    global_english_file = os.path.join(THIS_FOLDER, GLOBAL_ENGLISH_DATA)
+    training_data, locations = read_global_english_data(global_english_file)
+    print('Using global english data set with {} tweets'.format(len(training_data)))
+    training_data = np.array_split(training_data, 200)
+    print('Split into {} subsets with {} tweets each'.format(len(training_data), len(training_data[0])))
+    training_data, labels = label_data(training_data)
 
     # Train the SVM classifier on the meta features data set and predictive accuracy
     # Use 5 fold cross validation
@@ -176,7 +158,11 @@ if __name__ == '__main__':
     # (3) Scaling feature and predictor variables
     # (4) Reduce number of features via recursive feature elimination
     X_train, X_test, y_train, y_test = train_test_split(training_data, labels, 
-        test_size=0.4, random_state=0)
+        test_size=0.3, random_state=0)
+
+    X_train = convert_to_metafeatures(X_train)
+    X_test_og = copy.deepcopy(X_test)
+    X_test = convert_to_metafeatures(X_test)
 
     regression = make_pipeline(
       StandardScaler(),
@@ -199,27 +185,90 @@ if __name__ == '__main__':
     print('SVM model predictions: {}'.format(predicted))
     print('SVM model MAE on test data: {}'.format(mean_absolute_error(y_test, predicted)))
 
+    print('SVM model average predicted accuracy: {}'.format(sum(predicted)/len(predicted)))
+
+    plot_test_data(predicted, y_test)
+
     print('\nRunning model on challenge data sets\n')
 
     aave_file = os.path.join(THIS_FOLDER, AAVE_DATA)
     # split this into N samples of size 4000
     twitter_aave_data = read_data(aave_file, 5, tab_separated=True)
+    print('Read {} AAVE tweets'.format(len(twitter_aave_data)))
 
     # Only ~4000 tweets, so just use the whole sample
     scottish_file = os.path.join(THIS_FOLDER, SCOTTISH_DATA)
     scottish_data = read_data(scottish_file, 0)
+    print('Read {} scottish tweets'.format(len(scottish_data)))
 
-    # Only ~5000 tweets, so just use the whole sample
-    global_english_file = os.path.join(THIS_FOLDER, GLOBAL_ENGLISH_DATA)
-    global_english_data = read_global_english_data(global_english_file)
+    short_tweets = trim_to_short(X_test_og)
+    print('Predicting accuracy on {} short tweets'.format(len(short_tweets)))
+    short_tweet_sets = np.array_split(short_tweets, int(len(short_tweets)/25))
+    short_predictions = regression.predict(convert_to_metafeatures(short_tweet_sets))
+    average_short_prediction = sum(short_predictions)/len(short_predictions)
+    print('Predicted accuracy for short tweet data {}'.format(average_short_prediction))
 
-    split_aave_data = np.array_split(twitter_aave_data, int(len(twitter_aave_data)/4000))
+    us_tweets, other_tweets = partition_by_location(X_test_og, locations)
+    print('Partitioned into {} US tweets and {} non-US tweets'.format(len(us_tweets), len(other_tweets)))
+
+    us_tweet_sets = np.array_split(us_tweets, int(len(us_tweets)/25))
+    us_predictions = regression.predict(convert_to_metafeatures(us_tweet_sets))
+    average_us_prediction = sum(us_predictions)/len(us_predictions)
+    print('Predicted accuracy for US tweet data {}'.format(average_us_prediction))
+
+    other_tweet_sets = np.array_split(other_tweets, int(len(other_tweets)/25))
+    other_predictions = regression.predict(convert_to_metafeatures(other_tweet_sets))
+    average_other_prediction = sum(other_predictions)/len(other_predictions)
+    print('Predicted accuracy for outside US tweet data {}'.format(average_other_prediction))
+
+    # Predicted accuracy for AAVE data 0.828578629039958
+    split_aave_data = np.array_split(twitter_aave_data, int(len(twitter_aave_data)/25))
     aave_predictions = regression.predict(convert_to_metafeatures(split_aave_data))
     average_aave_prediction = sum(aave_predictions)/len(aave_predictions)
     print('Predicted accuracy for AAVE data {}'.format(average_aave_prediction))
 
-    scottish_prediction = regression.predict(np.array(convert_to_metafeatures([scottish_data])))[0]
-    print('Predicted accuracy for Scottish data {}'.format(scottish_prediction))
+    split_scottish_data = np.array_split(scottish_data, int(len(scottish_data)/25))
+    scot_predictions = regression.predict(convert_to_metafeatures(split_scottish_data))
+    average_scot_prediction = sum(scot_predictions)/len(scot_predictions)
+    print('Predicted accuracy for Scottish data {}'.format(average_scot_prediction))
 
-    global_english_prediction = regression.predict(np.array(convert_to_metafeatures([global_english_data])))[0]
-    print('Predicted accuracy for global_english data {}'.format(global_english_prediction))
+    # Predictions using the same tweets for AAVE and Scottish English presented to human experts
+    # in our survey
+    survey_AAVE = np.array([
+        "I'm nt understandinn yy icnt changee mi namee or changee mi profile pic on twitter anymoree!! Ugghh!!",
+        "my full name is CHRISTOPHER DANE MOSS if you did not know",
+        "Llf dont look at me dont look at me",
+        "I wanna know why Emerald so MFn ashy tho",
+        "Came home at 3am & left rite back out",
+        "Thrax pack for da low, them 7s go for da huncho!",
+        "Real Talk I Aint The Bitch Type But I Might Be Yo Bitch Type",
+        "Bernie Was High After On The Phone lls he still my CRUSH ! (:",
+        "I tried to break away like Kunta...",
+        "Me and my baby >>>>>> hope it stays this way even though I always mess things up",
+        "Shee Look Pretty With Her Like That...",
+        "That girl at and was bad af tall dark skin and wish a nigga got her number",
+        "Im acting up? You got my pw read the shit and stop assuming",
+        "Dang I haven't got ah text from  since early this morning lls that's crazy but Hey"
+        "I want my djs at vibe lounge tonight to play sum hot new reggae tonight ..I'm feelin da vibe"
+    ])
+    print('Prediction on survey AAVE data: {}'.format(regression.predict(convert_to_metafeatures([survey_AAVE]))[0]))
+
+    survey_Scots = np.array([
+        "GIT THE DIVING OOT AE EDINBURGH GIT IT TAE THE TIME CAPSULE",
+        "See if that circus Vegas is 'Europes largest circus' WIT THEY DAIN IN THE PLAYDROME CARPARK!?",
+        "8 mile is on. YASSSS",
+        "What a SHITE night",
+        "Freakishly large bottom lip and an almost non existent top lip. Pure GID balance, ok.",
+        "Dj hixxy - discoland DAE ITTTT! ",
+        "20 TIMES 20 TIMES YOUR STILL SHITE",
+        "FUCK AYE",
+        "I genuinely want to punch the fuck out my mum she's decided to come in n tidy my room, A WANTY SLEEP",
+        "Aargh Labour Press team after my blood because we interviewed Gordon Brown against a Say AYE ( to a Killie pie sign..) ",
+        "Fucksake a canny believe a neck nominated Boaby sands ..... YEV GOT 24 YA CUNT N A WANT THE VIDEO ON FACEBOOK NAE CHEATIN PAWL",
+        "Watchin Art Attack lit aht AYE WAIT N ILL JIST PULL A BOTTO A PVA GLUE FAE MA ARSE NEIL x",
+        "Had to do some serious grafting today , dno how I feel about this. Traumatised , shocked , wtf just happened.  I DIDNY GET MA NAP TIME !",
+        "Hate when people are like 'I've done nothing'... AYE THATS THE PROBLEM",
+        "Open the door I say for Iam a bogas gasman and am here TAE ransack YER HOOOSE!!! NOOO!!! Open the door plz...."
+    ])
+
+    print('Prediction on survey Scottish data: {}'.format(regression.predict(convert_to_metafeatures([survey_Scots]))[0]))

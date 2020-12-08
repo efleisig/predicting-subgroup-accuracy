@@ -9,6 +9,7 @@ numpy = "*"
 scipy = "*"
 langid = "*"
 sklearn = "*"
+matplotlib = "*"
 
 [dev-packages]
 

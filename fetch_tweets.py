@@ -1,6 +1,3 @@
-#This code creates the dataset from Corpus.csv which is downloadable from the
-#internet well known dataset which is labeled manually by hand. But for the text
-#of tweets you need to fetch them with their IDs.
 import tweepy
 import csv
 import time

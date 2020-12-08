@@ -125,32 +125,4 @@ if __name__ == '__main__':
     #         if accept_word(word):
     #             curr_count = counts.get(word, 0)
     #             counts[word] = curr_count + 1
-
-    # # use words that occur at least 50 times
-    # vocab = sage.makeVocab(counts, 50)
-
-    # vocab_counts = sage.makeCountVec(counts, vocab)
-    # log_probabilities = []
-    # for i in range(len(vocab)):
-    #     log_probabilities.append(math.log(vocab_counts[i]/float(len(vocab))))
-    
-    # #print log_probabilities
-        
-    # # use sage.makeVocab to build the vocabulary given the scotland tweets
-    # counts = collections.Counter()
-    # for tweet in scotland_tweets:
-    #     for word in tweet.split():
-    #         if accept_word(word):
-    #             curr_count = counts.get(word, 0)
-    #             counts[word] = curr_count + 1
-    # vocab_counts = sage.makeCountVec(counts, vocab)
-
-    # vocab_array = np.asarray(vocab_counts)
-    # vocab_array = np.reshape(vocab_array,(-1,1))
-    # beta = sage.estimate(vocab_array, np.asarray(log_probabilities))
-
-    # #import pdb; pdb.set_trace()
-    # #print beta
-
-    # print(sage.topK(beta, vocab, K=400))
     
