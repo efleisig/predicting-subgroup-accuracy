@@ -10,5 +10,8 @@ This repo contains code written for our COS597E final project
 To reproduce the meta-learning model and its results:
 
 1. Unzip the zip files found in the data/ directory
+    - twitteraae_all_aa.zip should be unzipped as twitteraae_all_aa.tsv
+    - scottish_tweets.zip should be unzipped as scottish_english_tweets.csv
+    - global_english.zip should be unzipped as global_english.tsv
 2. Install the python dependencies specified in the Pipfile
 3. Run `python accuracy-predictor.py`
