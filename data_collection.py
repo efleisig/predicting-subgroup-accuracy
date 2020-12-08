@@ -111,18 +111,3 @@ if __name__ == '__main__':
     #             linewriter.writerow([tweet.encode('ascii', 'ignore')])
     #         except Exception as e:
     #             print(e)
-    
-    # first compute log-probabilities of each word in the UK_tweets
-    # I think this means:
-    #
-    # for each word in vocab:
-    #       log(count / total_vocab_size)
-    #
-    # TODO: filter out stop words, hashtags, mentions, and URLs
-    # counts = collections.Counter()
-    # for tweet in uk_tweets:
-    #     for word in tweet.split():
-    #         if accept_word(word):
-    #             curr_count = counts.get(word, 0)
-    #             counts[word] = curr_count + 1
-    
