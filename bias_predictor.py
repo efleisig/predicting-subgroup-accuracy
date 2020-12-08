@@ -126,7 +126,7 @@ def plot_test_data(predicted, actual):
 
     plt.xlabel('Tweet Set (Size 25)')
     plt.ylabel('Accuracy')
-    plt.title('Predicted Accuracy vs Actual')
+    plt.title('Test Data Predicted Accuracy vs Actual')
     plt.legend()
 
     plt.tick_params(
@@ -135,6 +135,33 @@ def plot_test_data(predicted, actual):
         bottom=False,      # ticks along the bottom edge are off
         top=False,         # ticks along the top edge are off
         labelbottom=False) # labels along the bottom edge are off
+
+    plt.tight_layout()
+
+def plot_challenge_predictions(predictions):
+    N = 6
+
+    # create plot
+    fig, ax = plt.subplots()
+    index = np.arange(N)
+    bar_width = 0.25
+    opacity = 0.8
+
+    rects1 = plt.bar(index, predictions, bar_width,
+        alpha=opacity, color='b')
+
+    plt.xlabel('Challenge Dataset')
+    plt.ylabel('Predicted Accuracy')
+    plt.title('Predicted Accuracy on Challenge Datasets')
+    plt.xticks(index, ['AAVE', 'Scottish English', 'Global English (All)', 
+        'Global English (US)', 'Global English (Non-US)', 'Short Tweets'])
+    plt.yticks(np.arange(0, 1, 0.1))
+
+    plt.tick_params(
+        axis='x',          # changes apply to the x-axis
+        which='both',      # both major and minor ticks are affected
+        bottom=False,      # ticks along the bottom edge are off
+        top=False,)         # ticks along the top edge are off
 
     plt.tight_layout()
     plt.show()
@@ -185,28 +212,37 @@ if __name__ == '__main__':
     print('SVM model predictions: {}'.format(predicted))
     print('SVM model MAE on test data: {}'.format(mean_absolute_error(y_test, predicted)))
 
-    print('SVM model average predicted accuracy: {}'.format(sum(predicted)/len(predicted)))
+    avg_test_prediction = sum(predicted)/len(predicted)
+    print('SVM model average predicted accuracy: {}'.format(avg_test_prediction))
 
     plot_test_data(predicted, y_test)
 
     print('\nRunning model on challenge data sets\n')
+    challenge_predictions = []
 
     aave_file = os.path.join(THIS_FOLDER, AAVE_DATA)
-    # split this into N samples of size 4000
     twitter_aave_data = read_data(aave_file, 5, tab_separated=True)
     print('Read {} AAVE tweets'.format(len(twitter_aave_data)))
 
-    # Only ~4000 tweets, so just use the whole sample
     scottish_file = os.path.join(THIS_FOLDER, SCOTTISH_DATA)
     scottish_data = read_data(scottish_file, 0)
     print('Read {} scottish tweets'.format(len(scottish_data)))
 
-    short_tweets = trim_to_short(X_test_og)
-    print('Predicting accuracy on {} short tweets'.format(len(short_tweets)))
-    short_tweet_sets = np.array_split(short_tweets, int(len(short_tweets)/25))
-    short_predictions = regression.predict(convert_to_metafeatures(short_tweet_sets))
-    average_short_prediction = sum(short_predictions)/len(short_predictions)
-    print('Predicted accuracy for short tweet data {}'.format(average_short_prediction))
+    split_aave_data = np.array_split(twitter_aave_data, int(len(twitter_aave_data)/25))
+    aave_predictions = regression.predict(convert_to_metafeatures(split_aave_data))
+    average_aave_prediction = sum(aave_predictions)/len(aave_predictions)
+    print('Predicted accuracy for AAVE data {}'.format(average_aave_prediction))
+    challenge_predictions.append(average_aave_prediction)
+
+    split_scottish_data = np.array_split(scottish_data, int(len(scottish_data)/25))
+    scot_predictions = regression.predict(convert_to_metafeatures(split_scottish_data))
+    average_scot_prediction = sum(scot_predictions)/len(scot_predictions)
+    print('Predicted accuracy for Scottish data {}'.format(average_scot_prediction))
+    challenge_predictions.append(average_scot_prediction)
+
+    # Global English used as train and test data, so append the average test predicted accuracy
+    # as the global english prediction
+    challenge_predictions.append(avg_test_prediction)
 
     us_tweets, other_tweets = partition_by_location(X_test_og, locations)
     print('Partitioned into {} US tweets and {} non-US tweets'.format(len(us_tweets), len(other_tweets)))
@@ -214,23 +250,24 @@ if __name__ == '__main__':
     us_tweet_sets = np.array_split(us_tweets, int(len(us_tweets)/25))
     us_predictions = regression.predict(convert_to_metafeatures(us_tweet_sets))
     average_us_prediction = sum(us_predictions)/len(us_predictions)
-    print('Predicted accuracy for US tweet data {}'.format(average_us_prediction))
+    print('Predicted accuracy for Global English (US) tweet data {}'.format(average_us_prediction))
+    challenge_predictions.append(average_us_prediction)
 
     other_tweet_sets = np.array_split(other_tweets, int(len(other_tweets)/25))
     other_predictions = regression.predict(convert_to_metafeatures(other_tweet_sets))
     average_other_prediction = sum(other_predictions)/len(other_predictions)
-    print('Predicted accuracy for outside US tweet data {}'.format(average_other_prediction))
+    print('Predicted accuracy for outside Global English (non-US) tweet data {}'.format(average_other_prediction))
+    challenge_predictions.append(average_other_prediction)
 
-    # Predicted accuracy for AAVE data 0.828578629039958
-    split_aave_data = np.array_split(twitter_aave_data, int(len(twitter_aave_data)/25))
-    aave_predictions = regression.predict(convert_to_metafeatures(split_aave_data))
-    average_aave_prediction = sum(aave_predictions)/len(aave_predictions)
-    print('Predicted accuracy for AAVE data {}'.format(average_aave_prediction))
+    short_tweets = trim_to_short(X_test_og)
+    print('Predicting accuracy on {} short tweets'.format(len(short_tweets)))
+    short_tweet_sets = np.array_split(short_tweets, int(len(short_tweets)/25))
+    short_predictions = regression.predict(convert_to_metafeatures(short_tweet_sets))
+    average_short_prediction = sum(short_predictions)/len(short_predictions)
+    print('Predicted accuracy for short tweet data {}'.format(average_short_prediction))
+    challenge_predictions.append(average_short_prediction)
 
-    split_scottish_data = np.array_split(scottish_data, int(len(scottish_data)/25))
-    scot_predictions = regression.predict(convert_to_metafeatures(split_scottish_data))
-    average_scot_prediction = sum(scot_predictions)/len(scot_predictions)
-    print('Predicted accuracy for Scottish data {}'.format(average_scot_prediction))
+    plot_challenge_predictions(challenge_predictions)
 
     # Predictions using the same tweets for AAVE and Scottish English presented to human experts
     # in our survey
