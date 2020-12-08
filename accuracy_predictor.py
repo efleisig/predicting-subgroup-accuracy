@@ -104,6 +104,71 @@ def trim_to_short(tweets):
                 result.append(tweet)
     return np.array(result)
 
+def plot_challenge_data_performance_15(predicted, actual):
+    N = 2
+
+    # create plot
+    fig, ax = plt.subplots()
+    index = np.arange(N)
+    bar_width = 0.25
+    opacity = 0.8
+
+    rects1 = plt.bar(index, predicted, bar_width,
+        alpha=opacity, color='b', label='Predicted Accuracy (with 15 Tweets)')
+
+    rects2 = plt.bar(index + bar_width, actual, bar_width,
+        alpha=opacity, color='g', label='Actual Accuracy')
+
+    plt.xlabel('Challenge Data Set')
+    plt.ylabel('Accuracy')
+    plt.title('Predicted Accuracy vs Actual')
+    plt.legend()
+
+    plt.xticks(index, ['AAVE', 'Scottish English'])
+    plt.yticks(np.arange(0, 1, 0.1))
+
+    plt.tick_params(
+        axis='x',          # changes apply to the x-axis
+        which='both',      # both major and minor ticks are affected
+        bottom=False,      # ticks along the bottom edge are off
+        top=False,         # ticks along the top edge are off
+        labelbottom=True) # labels along the bottom edge are off
+
+    plt.tight_layout()
+
+def plot_challenge_data_performance(predicted, actual):
+    N = 6
+
+    # create plot
+    fig, ax = plt.subplots()
+    index = np.arange(N)
+    bar_width = 0.25
+    opacity = 0.8
+
+    rects1 = plt.bar(index, predicted, bar_width,
+        alpha=opacity, color='b', label='Predicted Accuracy (with All Data)')
+
+    rects2 = plt.bar(index + bar_width, actual, bar_width,
+        alpha=opacity, color='g', label='Actual Accuracy')
+
+    plt.xlabel('Challenge Data Set')
+    plt.ylabel('Accuracy')
+    plt.title('Predicted Accuracy vs Actual')
+    plt.legend()
+
+    plt.xticks(index, ['AAVE', 'Scottish English', 'Global English (All)', 
+        'Global English (US)', 'Global English (Non-US)', 'Short Tweets'])
+    plt.yticks(np.arange(0, 1, 0.1))
+
+    plt.tick_params(
+        axis='x',          # changes apply to the x-axis
+        which='both',      # both major and minor ticks are affected
+        bottom=False,      # ticks along the bottom edge are off
+        top=False,         # ticks along the top edge are off
+        labelbottom=True) # labels along the bottom edge are off
+
+    plt.tight_layout()
+
 def plot_test_data(predicted, actual):
     random.seed(10)
     N = 10
@@ -164,7 +229,6 @@ def plot_challenge_predictions(predictions):
         top=False,)         # ticks along the top edge are off
 
     plt.tight_layout()
-    plt.show()
     
 if __name__ == '__main__':
     global_english_file = os.path.join(THIS_FOLDER, GLOBAL_ENGLISH_DATA)
@@ -309,3 +373,16 @@ if __name__ == '__main__':
     ])
 
     print('Prediction on survey Scottish data: {}'.format(regression.predict(convert_to_metafeatures([survey_Scots]))[0]))
+
+    actual_accuracies = [0.872, 0.936, 0.750, 0.892, 0.584, 0.704]
+    print("Actual accuracies: {}".format(actual_accuracies))
+    print('Mean absolute error: {}'.format(mean_absolute_error(actual_accuracies, challenge_predictions)))
+    plot_challenge_data_performance(challenge_predictions, actual_accuracies)
+
+    short_sample_predictions = [0.7934, 0.7884]
+    actual = [0.872, 0.936]
+    print('Mean absolute error on only 15 tweet samples: {}'.format(mean_absolute_error(actual, short_sample_predictions)))
+
+    plot_challenge_data_performance_15(short_sample_predictions, actual)
+
+    plt.show()
